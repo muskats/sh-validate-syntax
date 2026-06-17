@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+strict=0
+forced_format=""
+status=0
+
+fail() {
+  local message="$1"
+  local detail="${2:-}"
+
+  echo "[FAIL] $message"
+  if [[ -n "$detail" ]]; then
+    echo "$detail"
+  fi
+  status=1
+}
+
+# Validate one file with the selected parser
+validate_file() {
+  local file="$1"
+  local format="${2:-}"
+  local ext
+  local error
+
+  if [[ ! -f "$file" ]]; then
+    fail "File not found: $file"
+    return
+  fi
+
+  if [[ -z "$format" ]]; then
+    # Default to the file suffix when available
+    ext=${file##*.}
+    ext=${ext,,}
+    case "$ext" in
+      json)
+        format="json"
+        ;;
+      yaml|yml)
+        format="yaml"
+        ;;
+      *)
+        fail "$file: unknown format; use --yaml or --json" "Extensionless files need an explicit format flag."
+        return
+        ;;
+    esac
+  fi
+
+  case "$format" in
+    json)
+      if error=$(jq empty "$file" 2>&1 >/dev/null); then
+        echo "[OK] $file: valid JSON"
+      else
+        fail "$file: invalid JSON" "$error"
+      fi
+      ;;
+    yaml)
+      if error=$(yq '.' "$file" 2>&1 >/dev/null); then
+        # Strict YAML rejects inputs that are also valid JSON.
+        if [[ "$strict" -eq 1 ]] && jq empty "$file" >/dev/null 2>&1; then
+          fail "$file: strict YAML rejected" "Reason: this file is also valid JSON."
+          return
+        fi
+        echo "[OK] $file: valid YAML"
+      else
+        fail "$file: invalid YAML" "$error"
+      fi
+      ;;
+    *)
+      fail "$file: unsupported or unknown format" "Use --yaml or --json."
+      ;;
+  esac
+}
+
+# Parse flags first then validate
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --json)
+      forced_format="json"
+      shift
+      ;;
+    --yaml|--yml)
+      forced_format="yaml"
+      shift
+      ;;
+    --strict|--enforced)
+      strict=1
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Usage: $0 [--json|--yaml] [--strict] <file> [file ...]"
+      exit 1
+      ;;
+    *)
+      validate_file "$1" "$forced_format"
+      forced_format=""
+      shift
+      ;;
+  esac
+done
+
+exit "$status"
