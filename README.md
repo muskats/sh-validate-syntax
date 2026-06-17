@@ -26,10 +26,10 @@ This is a small local utility for syntax checks. It uses file suffixes when they
 From inside this repository:
 
 ```bash
-./validate-syntax test/test.json
-./validate-syntax test/test.yaml
-./validate-syntax --yaml --strict test/test-yaml
-./validate-syntax --json test/test-json
+./validate-syntax path-to/file.json
+./validate-syntax path-to/file.yaml
+./validate-syntax --yaml --strict path-to/file-yaml
+./validate-syntax --json path-to/file-json
 ```
 
 ### Install as a command
